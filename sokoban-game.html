@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>推箱子游戏</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Arial', sans-serif;
+        }
+
+        .game-container {
+            text-align: center;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            max-width: 90vw;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .info-board {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+            font-size: 1.2em;
+            color: #555;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .info-item {
+            padding: 10px 20px;
+            background: #f0f0f0;
+            border-radius: 10px;
+            font-weight: bold;
+        }
+
+        #gameCanvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: #2c3e50;
+            display: block;
+            margin: 0 auto;
+            image-rendering: pixelated;
+        }
+
+        .controls {
+            margin-top: 20px;
+            color: #666;
+        }
+
+        .controls p {
+            margin: 5px 0;
+        }
+
+        .button-group {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 30px;
+            font-size: 1.1em;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            z-index: 1000;
+            min-width: 300px;
+        }
+
+        .modal.show {
+            display: block;
+        }
+
+        .modal h2 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+        }
+
+        .modal p {
+            font-size: 1.3em;
+            margin-bottom: 20px;
+        }
+
+        .level-complete h2 {
+            color: #4ade80;
+        }
+
+        .game-complete h2 {
+            color: #fbbf24;
+        }
+
+        .legend {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 10px;
+            display: inline-block;
+        }
+
+        .legend-item {
+            display: inline-block;
+            margin: 0 15px;
+            font-size: 1.1em;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>📦 推箱子游戏</h1>
+        <div class="info-board">
+            <div class="info-item">
+                <span>关卡: </span>
+                <span id="level">1</span>
+                <span> / 10</span>
+            </div>
+            <div class="info-item">
+                <span>步数: </span>
+                <span id="steps">0</span>
+            </div>
+            <div class="info-item">
+                <span>推动次数: </span>
+                <span id="pushes">0</span>
+            </div>
+        </div>
+        <canvas id="gameCanvas"></canvas>
+        <div class="controls">
+            <p>⌨️ 使用方向键或 WASD 移动</p>
+            <p>📦 将所有箱子推到目标位置即可过关</p>
+            <p>💡 箱子只能推不能拉</p>
+        </div>
+        <div class="button-group">
+            <button id="restartBtn">重新开始</button>
+            <button id="undoBtn">撤销 (Z)</button>
+            <button id="prevBtn">上一关</button>
+            <button id="nextBtn">下一关</button>
+        </div>
+        <div class="legend">
+            <div class="legend-item">🧑 玩家</div>
+            <div class="legend-item">📦 箱子</div>
+            <div class="legend-item">🎯 目标</div>
+            <div class="legend-item">✅ 完成</div>
+        </div>
+    </div>
+
+    <div class="modal level-complete" id="levelComplete">
+        <h2>🎉 过关了！</h2>
+        <p>步数: <span id="finalSteps">0</span></p>
+        <p>推动次数: <span id="finalPushes">0</span></p>
+        <button id="nextLevelBtn">下一关</button>
+    </div>
+
+    <div class="modal game-complete" id="gameComplete">
+        <h2>🏆 恭喜通关！</h2>
+        <p>你完成了所有10关！</p>
+        <p>总步数: <span id="totalSteps">0</span></p>
+        <p>总推动次数: <span id="totalPushes">0</span></p>
+        <button id="playAgainBtn">重新挑战</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const TILE_SIZE = 50;
+        const WALL = '#';
+        const FLOOR = ' ';
+        const PLAYER = '@';
+        const BOX = '$';
+        const TARGET = '.';
+        const BOX_ON_TARGET = '*';
+        const PLAYER_ON_TARGET = '+';
+
+        // 10个关卡，难度逐渐递增
+        const levels = [
+            // 第1关 - 入门级
+            [
+                "######",
+                "#    #",
+                "# $. #",
+                "# @  #",
+                "######"
+            ],
+            // 第2关 - 简单
+            [
+                "#######",
+                "#     #",
+                "# .$. #",
+                "# $ $ #",
+                "#  @  #",
+                "#######"
+            ],
+            // 第3关 - 基础
+            [
+                "  #####",
+                "###   #",
+                "#.$ $ #",
+                "#. @  #",
+                "#   ###",
+                "#####"
+            ],
+            // 第4关 - 进阶
+            [
+                "########",
+                "#   .. #",
+                "#  $$  #",
+                "##  @ ##",
+                " #    #",
+                " ######"
+            ],
+            // 第5关 - 中等
+            [
+                " ######",
+                "##    #",
+                "#  $$ ##",
+                "# $..  #",
+                "##@..  #",
+                " #    ##",
+                " ######"
+            ],
+            // 第6关 - 中等偏难
+            [
+                "  ####",
+                "###  ####",
+                "#   $   #",
+                "# $  $# #",
+                "##.#.#  #",
+                " #.  # ##",
+                " # @   #",
+                " #######"
+            ],
+            // 第7关 - 较难
+            [
+                "########",
+                "#   .. #",
+                "# # ## #",
+                "# $  $ #",
+                "## $#  #",
+                " # @  ##",
+                " #   ##",
+                " #####"
+            ],
+            // 第8关 - 难
+            [
+                " #######",
+                "##     #",
+                "# $ $$ #",
+                "# .#.  #",
+                "## #. ##",
+                " # $  #",
+                " # @ ##",
+                " #####"
+            ],
+            // 第9关 - 很难
+            [
+                "  ######",
+                "###    #",
+                "#  $$$ ##",
+                "# $  #  #",
+                "# #...  #",
+                "#  @  ###",
+                "######"
+            ],
+            // 第10关 - 最难
+            [
+                " ########",
+                "##  ... #",
+                "# $$$ # #",
+                "#   $   #",
+                "### # ###",
+                "  # $  #",
+                "  # @  #",
+                "  ######"
+            ]
+        ];
+
+        let currentLevel = 0;
+        let gameState = [];
+        let playerPos = { x: 0, y: 0 };
+        let steps = 0;
+        let pushes = 0;
+        let totalSteps = 0;
+        let totalPushes = 0;
+        let history = [];
+
+        function initLevel(levelIndex) {
+            const level = levels[levelIndex];
+            gameState = level.map(row => row.split(''));
+
+            // 找到玩家位置
+            for (let y = 0; y < gameState.length; y++) {
+                for (let x = 0; x < gameState[y].length; x++) {
+                    if (gameState[y][x] === PLAYER || gameState[y][x] === PLAYER_ON_TARGET) {
+                        playerPos = { x, y };
+                    }
+                }
+            }
+
+            steps = 0;
+            pushes = 0;
+            history = [];
+
+            // 设置画布大小
+            const maxWidth = Math.max(...gameState.map(row => row.length));
+            canvas.width = maxWidth * TILE_SIZE;
+            canvas.height = gameState.length * TILE_SIZE;
+
+            updateUI();
+            draw();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            for (let y = 0; y < gameState.length; y++) {
+                for (let x = 0; x < gameState[y].length; x++) {
+                    const tile = gameState[y][x];
+                    const px = x * TILE_SIZE;
+                    const py = y * TILE_SIZE;
+
+                    // 绘制地板
+                    if (tile !== WALL) {
+                        ctx.fillStyle = '#34495e';
+                        ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+                    }
+
+                    // 绘制墙壁
+                    if (tile === WALL) {
+                        ctx.fillStyle = '#7f8c8d';
+                        ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+                        ctx.strokeStyle = '#2c3e50';
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(px, py, TILE_SIZE, TILE_SIZE);
+                    }
+
+                    // 绘制目标点
+                    if (tile === TARGET || tile === PLAYER_ON_TARGET) {
+                        ctx.fillStyle = '#e74c3c';
+                        ctx.beginPath();
+                        ctx.arc(px + TILE_SIZE/2, py + TILE_SIZE/2, TILE_SIZE/4, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+
+                    // 绘制箱子
+                    if (tile === BOX) {
+                        ctx.fillStyle = '#f39c12';
+                        ctx.fillRect(px + 5, py + 5, TILE_SIZE - 10, TILE_SIZE - 10);
+                        ctx.strokeStyle = '#d68910';
+                        ctx.lineWidth = 3;
+                        ctx.strokeRect(px + 5, py + 5, TILE_SIZE - 10, TILE_SIZE - 10);
+                    }
+
+                    // 绘制在目标点上的箱子
+                    if (tile === BOX_ON_TARGET) {
+                        ctx.fillStyle = '#27ae60';
+                        ctx.fillRect(px + 5, py + 5, TILE_SIZE - 10, TILE_SIZE - 10);
+                        ctx.strokeStyle = '#229954';
+                        ctx.lineWidth = 3;
+                        ctx.strokeRect(px + 5, py + 5, TILE_SIZE - 10, TILE_SIZE - 10);
+
+                        // 绘制勾号
+                        ctx.strokeStyle = '#fff';
+                        ctx.lineWidth = 4;
+                        ctx.beginPath();
+                        ctx.moveTo(px + 15, py + TILE_SIZE/2);
+                        ctx.lineTo(px + TILE_SIZE/2 - 5, py + TILE_SIZE - 15);
+                        ctx.lineTo(px + TILE_SIZE - 15, py + 15);
+                        ctx.stroke();
+                    }
+
+                    // 绘制玩家
+                    if (tile === PLAYER || tile === PLAYER_ON_TARGET) {
+                        ctx.fillStyle = '#3498db';
+                        ctx.beginPath();
+                        ctx.arc(px + TILE_SIZE/2, py + TILE_SIZE/2, TILE_SIZE/3, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // 绘制眼睛
+                        ctx.fillStyle = '#fff';
+                        ctx.beginPath();
+                        ctx.arc(px + TILE_SIZE/2 - 8, py + TILE_SIZE/2 - 5, 4, 0, Math.PI * 2);
+                        ctx.arc(px + TILE_SIZE/2 + 8, py + TILE_SIZE/2 - 5, 4, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+            }
+        }
+
+        function saveState() {
+            history.push({
+                state: gameState.map(row => [...row]),
+                playerPos: { ...playerPos },
+                steps: steps,
+                pushes: pushes
+            });
+        }
+
+        function undo() {
+            if (history.length === 0) return;
+
+            const lastState = history.pop();
+            gameState = lastState.state;
+            playerPos = lastState.playerPos;
+            steps = lastState.steps;
+            pushes = lastState.pushes;
+
+            updateUI();
+            draw();
+        }
+
+        function move(dx, dy) {
+            const newX = playerPos.x + dx;
+            const newY = playerPos.y + dy;
+
+            if (newY < 0 || newY >= gameState.length ||
+                newX < 0 || newX >= gameState[newY].length) {
+                return;
+            }
+
+            const targetTile = gameState[newY][newX];
+
+            if (targetTile === WALL) return;
+
+            saveState();
+
+            // 检查是否推箱子
+            if (targetTile === BOX || targetTile === BOX_ON_TARGET) {
+                const boxNewX = newX + dx;
+                const boxNewY = newY + dy;
+
+                if (boxNewY < 0 || boxNewY >= gameState.length ||
+                    boxNewX < 0 || boxNewX >= gameState[boxNewY].length) {
+                    history.pop();
+                    return;
+                }
+
+                const boxTargetTile = gameState[boxNewY][boxNewX];
+
+                if (boxTargetTile === WALL || boxTargetTile === BOX || boxTargetTile === BOX_ON_TARGET) {
+                    history.pop();
+                    return;
+                }
+
+                // 移动箱子
+                if (boxTargetTile === TARGET) {
+                    gameState[boxNewY][boxNewX] = BOX_ON_TARGET;
+                } else {
+                    gameState[boxNewY][boxNewX] = BOX;
+                }
+
+                // 更新箱子原位置
+                if (targetTile === BOX_ON_TARGET) {
+                    gameState[newY][newX] = TARGET;
+                } else {
+                    gameState[newY][newX] = FLOOR;
+                }
+
+                pushes++;
+            }
+
+            // 更新玩家原位置
+            if (gameState[playerPos.y][playerPos.x] === PLAYER_ON_TARGET) {
+                gameState[playerPos.y][playerPos.x] = TARGET;
+            } else {
+                gameState[playerPos.y][playerPos.x] = FLOOR;
+            }
+
+            // 更新玩家新位置
+            if (gameState[newY][newX] === TARGET) {
+                gameState[newY][newX] = PLAYER_ON_TARGET;
+            } else {
+                gameState[newY][newX] = PLAYER;
+            }
+
+            playerPos = { x: newX, y: newY };
+            steps++;
+
+            updateUI();
+            draw();
+            checkWin();
+        }
+
+        function checkWin() {
+            for (let y = 0; y < gameState.length; y++) {
+                for (let x = 0; x < gameState[y].length; x++) {
+                    if (gameState[y][x] === BOX) {
+                        return false;
+                    }
+                }
+            }
+
+            // 过关
+            totalSteps += steps;
+            totalPushes += pushes;
+
+            document.getElementById('finalSteps').textContent = steps;
+            document.getElementById('finalPushes').textContent = pushes;
+
+            if (currentLevel === levels.length - 1) {
+                // 全部通关
+                document.getElementById('totalSteps').textContent = totalSteps;
+                document.getElementById('totalPushes').textContent = totalPushes;
+                document.getElementById('gameComplete').classList.add('show');
+            } else {
+                document.getElementById('levelComplete').classList.add('show');
+            }
+        }
+
+        function updateUI() {
+            document.getElementById('level').textContent = currentLevel + 1;
+            document.getElementById('steps').textContent = steps;
+            document.getElementById('pushes').textContent = pushes;
+
+            document.getElementById('prevBtn').disabled = currentLevel === 0;
+            document.getElementById('nextBtn').disabled = currentLevel === levels.length - 1;
+            document.getElementById('undoBtn').disabled = history.length === 0;
+        }
+
+        function nextLevel() {
+            if (currentLevel < levels.length - 1) {
+                currentLevel++;
+                initLevel(currentLevel);
+                document.getElementById('levelComplete').classList.remove('show');
+            }
+        }
+
+        function prevLevel() {
+            if (currentLevel > 0) {
+                currentLevel--;
+                initLevel(currentLevel);
+            }
+        }
+
+        function restartLevel() {
+            initLevel(currentLevel);
+        }
+
+        function resetGame() {
+            currentLevel = 0;
+            totalSteps = 0;
+            totalPushes = 0;
+            initLevel(currentLevel);
+            document.getElementById('gameComplete').classList.remove('show');
+        }
+
+        // 键盘控制
+        document.addEventListener('keydown', (e) => {
+            switch(e.key) {
+                case 'ArrowUp':
+                case 'w':
+                case 'W':
+                    e.preventDefault();
+                    move(0, -1);
+                    break;
+                case 'ArrowDown':
+                case 's':
+                case 'S':
+                    e.preventDefault();
+                    move(0, 1);
+                    break;
+                case 'ArrowLeft':
+                case 'a':
+                case 'A':
+                    e.preventDefault();
+                    move(-1, 0);
+                    break;
+                case 'ArrowRight':
+                case 'd':
+                case 'D':
+                    e.preventDefault();
+                    move(1, 0);
+                    break;
+                case 'z':
+                case 'Z':
+                    e.preventDefault();
+                    undo();
+                    break;
+                case 'r':
+                case 'R':
+                    e.preventDefault();
+                    restartLevel();
+                    break;
+            }
+        });
+
+        // 按钮事件
+        document.getElementById('restartBtn').addEventListener('click', restartLevel);
+        document.getElementById('undoBtn').addEventListener('click', undo);
+        document.getElementById('prevBtn').addEventListener('click', prevLevel);
+        document.getElementById('nextBtn').addEventListener('click', nextLevel);
+        document.getElementById('nextLevelBtn').addEventListener('click', nextLevel);
+        document.getElementById('playAgainBtn').addEventListener('click', resetGame);
+
+        // 初始化第一关
+        initLevel(0);
+    </script>
+</body>
+</html>
