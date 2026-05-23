@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>五子棋游戏</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Arial', sans-serif;
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 32px;
+        }
+
+        .info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 10px;
+        }
+
+        .current-player {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .player-indicator {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+
+        .black {
+            background: #000;
+        }
+
+        .white {
+            background: #fff;
+            border: 2px solid #333;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #5568d3;
+        }
+
+        #board {
+            background: #daa520;
+            border: 3px solid #8b6914;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            cursor: pointer;
+        }
+
+        .winner-message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 40px 60px;
+            border-radius: 20px;
+            box-shadow: 0 10px 50px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            z-index: 1000;
+            display: none;
+        }
+
+        .winner-message.show {
+            display: block;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translate(-50%, -60%);
+                opacity: 0;
+            }
+            to {
+                transform: translate(-50%, -50%);
+                opacity: 1;
+            }
+        }
+
+        .winner-message h2 {
+            font-size: 36px;
+            margin-bottom: 20px;
+            color: #667eea;
+        }
+
+        .winner-message button {
+            margin-top: 20px;
+            padding: 12px 30px;
+            font-size: 18px;
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            z-index: 999;
+        }
+
+        .overlay.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>五子棋</h1>
+        <div class="info">
+            <div class="current-player">
+                当前玩家: <span id="currentPlayer">黑方</span>
+                <span class="player-indicator black" id="playerIndicator"></span>
+            </div>
+            <button onclick="resetGame()">重新开始</button>
+        </div>
+        <canvas id="board" width="600" height="600"></canvas>
+    </div>
+
+    <div class="overlay" id="overlay"></div>
+    <div class="winner-message" id="winnerMessage">
+        <h2 id="winnerText"></h2>
+        <button onclick="resetGame()">再来一局</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('board');
+        const ctx = canvas.getContext('2d');
+        const GRID_SIZE = 15;
+        const CELL_SIZE = canvas.width / (GRID_SIZE + 1);
+        const PIECE_RADIUS = CELL_SIZE * 0.4;
+
+        let board = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(0));
+        let currentPlayer = 1; // 1 = 黑方, 2 = 白方
+        let gameOver = false;
+
+        function drawBoard() {
+            ctx.fillStyle = '#daa520';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1;
+
+            for (let i = 0; i < GRID_SIZE; i++) {
+                ctx.beginPath();
+                ctx.moveTo(CELL_SIZE * (i + 1), CELL_SIZE);
+                ctx.lineTo(CELL_SIZE * (i + 1), canvas.height - CELL_SIZE);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(CELL_SIZE, CELL_SIZE * (i + 1));
+                ctx.lineTo(canvas.width - CELL_SIZE, CELL_SIZE * (i + 1));
+                ctx.stroke();
+            }
+
+            const starPoints = [
+                [3, 3], [3, 11], [11, 3], [11, 11], [7, 7]
+            ];
+            starPoints.forEach(([x, y]) => {
+                ctx.beginPath();
+                ctx.arc(CELL_SIZE * (x + 1), CELL_SIZE * (y + 1), 4, 0, Math.PI * 2);
+                ctx.fillStyle = '#000';
+                ctx.fill();
+            });
+        }
+
+        function drawPiece(row, col, player) {
+            const x = CELL_SIZE * (col + 1);
+            const y = CELL_SIZE * (row + 1);
+
+            ctx.beginPath();
+            ctx.arc(x, y, PIECE_RADIUS, 0, Math.PI * 2);
+
+            if (player === 1) {
+                ctx.fillStyle = '#000';
+                ctx.fill();
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            } else {
+                ctx.fillStyle = '#fff';
+                ctx.fill();
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+        }
+
+        function redrawBoard() {
+            drawBoard();
+            for (let i = 0; i < GRID_SIZE; i++) {
+                for (let j = 0; j < GRID_SIZE; j++) {
+                    if (board[i][j] !== 0) {
+                        drawPiece(i, j, board[i][j]);
+                    }
+                }
+            }
+        }
+
+        function checkWin(row, col, player) {
+            const directions = [
+                [[0, 1], [0, -1]],   // 横向
+                [[1, 0], [-1, 0]],   // 纵向
+                [[1, 1], [-1, -1]],  // 主对角线
+                [[1, -1], [-1, 1]]   // 副对角线
+            ];
+
+            for (let dir of directions) {
+                let count = 1;
+
+                for (let [dx, dy] of dir) {
+                    let newRow = row + dx;
+                    let newCol = col + dy;
+
+                    while (newRow >= 0 && newRow < GRID_SIZE &&
+                           newCol >= 0 && newCol < GRID_SIZE &&
+                           board[newRow][newCol] === player) {
+                        count++;
+                        newRow += dx;
+                        newCol += dy;
+                    }
+                }
+
+                if (count >= 5) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        function showWinner(player) {
+            const winnerText = document.getElementById('winnerText');
+            const winnerMessage = document.getElementById('winnerMessage');
+            const overlay = document.getElementById('overlay');
+
+            winnerText.textContent = `${player === 1 ? '黑方' : '白方'}获胜！`;
+            winnerMessage.classList.add('show');
+            overlay.classList.add('show');
+        }
+
+        function updatePlayerDisplay() {
+            const playerText = document.getElementById('currentPlayer');
+            const playerIndicator = document.getElementById('playerIndicator');
+
+            if (currentPlayer === 1) {
+                playerText.textContent = '黑方';
+                playerIndicator.className = 'player-indicator black';
+            } else {
+                playerText.textContent = '白方';
+                playerIndicator.className = 'player-indicator white';
+            }
+        }
+
+        canvas.addEventListener('click', (e) => {
+            if (gameOver) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const col = Math.round(x / CELL_SIZE) - 1;
+            const row = Math.round(y / CELL_SIZE) - 1;
+
+            if (row >= 0 && row < GRID_SIZE && col >= 0 && col < GRID_SIZE && board[row][col] === 0) {
+                board[row][col] = currentPlayer;
+                drawPiece(row, col, currentPlayer);
+
+                if (checkWin(row, col, currentPlayer)) {
+                    gameOver = true;
+                    showWinner(currentPlayer);
+                } else {
+                    currentPlayer = currentPlayer === 1 ? 2 : 1;
+                    updatePlayerDisplay();
+                }
+            }
+        });
+
+        function resetGame() {
+            board = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(0));
+            currentPlayer = 1;
+            gameOver = false;
+            redrawBoard();
+            updatePlayerDisplay();
+
+            document.getElementById('winnerMessage').classList.remove('show');
+            document.getElementById('overlay').classList.remove('show');
+        }
+
+        drawBoard();
+        updatePlayerDisplay();
+    </script>
+</body>
+</html>
