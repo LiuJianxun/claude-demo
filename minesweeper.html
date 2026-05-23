@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>扫雷游戏</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 32px;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            gap: 15px;
+        }
+
+        .info {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .info-item {
+            background: #f0f0f0;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        .difficulty {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .btn-difficulty {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-difficulty:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+
+        .btn-difficulty.active {
+            background: #764ba2;
+        }
+
+        .btn-reset {
+            background: #4CAF50;
+            color: white;
+            font-size: 16px;
+        }
+
+        .btn-reset:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+
+        .game-board {
+            display: inline-grid;
+            gap: 2px;
+            background: #999;
+            padding: 2px;
+            border-radius: 8px;
+        }
+
+        .cell {
+            width: 30px;
+            height: 30px;
+            background: #ddd;
+            border: 2px solid #bbb;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            transition: all 0.1s;
+            user-select: none;
+        }
+
+        .cell:hover:not(.revealed):not(.flagged) {
+            background: #ccc;
+            transform: scale(0.95);
+        }
+
+        .cell.revealed {
+            background: #f5f5f5;
+            border: 1px solid #ccc;
+            cursor: default;
+        }
+
+        .cell.flagged {
+            background: #ffd700;
+            color: #d32f2f;
+            font-size: 18px;
+        }
+
+        .cell.mine {
+            background: #d32f2f;
+            color: white;
+            font-size: 18px;
+        }
+
+        .cell.number-1 { color: #0000ff; }
+        .cell.number-2 { color: #008000; }
+        .cell.number-3 { color: #ff0000; }
+        .cell.number-4 { color: #000080; }
+        .cell.number-5 { color: #800000; }
+        .cell.number-6 { color: #008080; }
+        .cell.number-7 { color: #000000; }
+        .cell.number-8 { color: #808080; }
+
+        .game-over {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .game-over.show {
+            display: flex;
+        }
+
+        .game-over-content {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            animation: slideIn 0.3s;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .game-over-content h2 {
+            font-size: 36px;
+            margin-bottom: 20px;
+        }
+
+        .game-over-content.win h2 {
+            color: #4CAF50;
+        }
+
+        .game-over-content.lose h2 {
+            color: #d32f2f;
+        }
+
+        .game-over-content p {
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>💣 扫雷游戏</h1>
+
+        <div class="controls">
+            <div class="info">
+                <div class="info-item">
+                    🚩 剩余: <span id="minesLeft">10</span>
+                </div>
+                <div class="info-item">
+                    ⏱️ 时间: <span id="timer">0</span>s
+                </div>
+            </div>
+
+            <div class="difficulty">
+                <button class="btn-difficulty active" data-level="easy">简单</button>
+                <button class="btn-difficulty" data-level="medium">中等</button>
+                <button class="btn-difficulty" data-level="hard">困难</button>
+            </div>
+
+            <button class="btn-reset" onclick="game.reset()">🔄 重新开始</button>
+        </div>
+
+        <div id="gameBoard" class="game-board"></div>
+    </div>
+
+    <div id="gameOver" class="game-over">
+        <div id="gameOverContent" class="game-over-content">
+            <h2 id="gameOverTitle"></h2>
+            <p id="gameOverMessage"></p>
+            <button class="btn-reset" onclick="game.reset()">再玩一局</button>
+        </div>
+    </div>
+
+    <script>
+        class Minesweeper {
+            constructor() {
+                this.levels = {
+                    easy: { rows: 9, cols: 9, mines: 10 },
+                    medium: { rows: 16, cols: 16, mines: 40 },
+                    hard: { rows: 16, cols: 30, mines: 99 }
+                };
+                this.currentLevel = 'easy';
+                this.board = [];
+                this.revealed = [];
+                this.flagged = [];
+                this.gameStarted = false;
+                this.gameOver = false;
+                this.timer = 0;
+                this.timerInterval = null;
+
+                this.initDifficultyButtons();
+                this.reset();
+            }
+
+            initDifficultyButtons() {
+                document.querySelectorAll('.btn-difficulty').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        document.querySelectorAll('.btn-difficulty').forEach(b => b.classList.remove('active'));
+                        e.target.classList.add('active');
+                        this.currentLevel = e.target.dataset.level;
+                        this.reset();
+                    });
+                });
+            }
+
+            reset() {
+                this.gameStarted = false;
+                this.gameOver = false;
+                this.timer = 0;
+                clearInterval(this.timerInterval);
+                document.getElementById('timer').textContent = '0';
+                document.getElementById('gameOver').classList.remove('show');
+
+                const config = this.levels[this.currentLevel];
+                this.rows = config.rows;
+                this.cols = config.cols;
+                this.totalMines = config.mines;
+
+                this.board = Array(this.rows).fill(null).map(() => Array(this.cols).fill(0));
+                this.revealed = Array(this.rows).fill(null).map(() => Array(this.cols).fill(false));
+                this.flagged = Array(this.rows).fill(null).map(() => Array(this.cols).fill(false));
+
+                this.updateMinesLeft();
+                this.renderBoard();
+            }
+
+            placeMines(firstRow, firstCol) {
+                let minesPlaced = 0;
+                while (minesPlaced < this.totalMines) {
+                    const row = Math.floor(Math.random() * this.rows);
+                    const col = Math.floor(Math.random() * this.cols);
+
+                    if (this.board[row][col] !== -1 &&
+                        !(row === firstRow && col === firstCol) &&
+                        Math.abs(row - firstRow) > 1 || Math.abs(col - firstCol) > 1) {
+                        this.board[row][col] = -1;
+                        minesPlaced++;
+                    }
+                }
+
+                this.calculateNumbers();
+            }
+
+            calculateNumbers() {
+                for (let row = 0; row < this.rows; row++) {
+                    for (let col = 0; col < this.cols; col++) {
+                        if (this.board[row][col] === -1) continue;
+
+                        let count = 0;
+                        for (let dr = -1; dr <= 1; dr++) {
+                            for (let dc = -1; dc <= 1; dc++) {
+                                const newRow = row + dr;
+                                const newCol = col + dc;
+                                if (newRow >= 0 && newRow < this.rows &&
+                                    newCol >= 0 && newCol < this.cols &&
+                                    this.board[newRow][newCol] === -1) {
+                                    count++;
+                                }
+                            }
+                        }
+                        this.board[row][col] = count;
+                    }
+                }
+            }
+
+            renderBoard() {
+                const boardElement = document.getElementById('gameBoard');
+                boardElement.innerHTML = '';
+                boardElement.style.gridTemplateColumns = `repeat(${this.cols}, 30px)`;
+
+                for (let row = 0; row < this.rows; row++) {
+                    for (let col = 0; col < this.cols; col++) {
+                        const cell = document.createElement('div');
+                        cell.className = 'cell';
+                        cell.dataset.row = row;
+                        cell.dataset.col = col;
+
+                        cell.addEventListener('click', () => this.handleClick(row, col));
+                        cell.addEventListener('contextmenu', (e) => {
+                            e.preventDefault();
+                            this.handleRightClick(row, col);
+                        });
+
+                        boardElement.appendChild(cell);
+                    }
+                }
+            }
+
+            handleClick(row, col) {
+                if (this.gameOver || this.revealed[row][col] || this.flagged[row][col]) return;
+
+                if (!this.gameStarted) {
+                    this.gameStarted = true;
+                    this.placeMines(row, col);
+                    this.startTimer();
+                }
+
+                if (this.board[row][col] === -1) {
+                    this.revealMines();
+                    this.endGame(false);
+                    return;
+                }
+
+                this.revealCell(row, col);
+                this.checkWin();
+            }
+
+            handleRightClick(row, col) {
+                if (this.gameOver || this.revealed[row][col]) return;
+
+                this.flagged[row][col] = !this.flagged[row][col];
+                this.updateCell(row, col);
+                this.updateMinesLeft();
+            }
+
+            revealCell(row, col) {
+                if (row < 0 || row >= this.rows || col < 0 || col >= this.cols) return;
+                if (this.revealed[row][col] || this.flagged[row][col]) return;
+
+                this.revealed[row][col] = true;
+                this.updateCell(row, col);
+
+                if (this.board[row][col] === 0) {
+                    for (let dr = -1; dr <= 1; dr++) {
+                        for (let dc = -1; dc <= 1; dc++) {
+                            this.revealCell(row + dr, col + dc);
+                        }
+                    }
+                }
+            }
+
+            updateCell(row, col) {
+                const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+
+                if (this.revealed[row][col]) {
+                    cell.classList.add('revealed');
+                    const value = this.board[row][col];
+                    if (value > 0) {
+                        cell.textContent = value;
+                        cell.classList.add(`number-${value}`);
+                    }
+                } else if (this.flagged[row][col]) {
+                    cell.classList.add('flagged');
+                    cell.textContent = '🚩';
+                } else {
+                    cell.classList.remove('flagged');
+                    cell.textContent = '';
+                }
+            }
+
+            revealMines() {
+                for (let row = 0; row < this.rows; row++) {
+                    for (let col = 0; col < this.cols; col++) {
+                        if (this.board[row][col] === -1) {
+                            const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                            cell.classList.add('mine');
+                            cell.textContent = '💣';
+                        }
+                    }
+                }
+            }
+
+            checkWin() {
+                let revealedCount = 0;
+                for (let row = 0; row < this.rows; row++) {
+                    for (let col = 0; col < this.cols; col++) {
+                        if (this.revealed[row][col]) revealedCount++;
+                    }
+                }
+
+                if (revealedCount === this.rows * this.cols - this.totalMines) {
+                    this.endGame(true);
+                }
+            }
+
+            endGame(won) {
+                this.gameOver = true;
+                clearInterval(this.timerInterval);
+
+                const gameOverElement = document.getElementById('gameOver');
+                const contentElement = document.getElementById('gameOverContent');
+                const titleElement = document.getElementById('gameOverTitle');
+                const messageElement = document.getElementById('gameOverMessage');
+
+                if (won) {
+                    contentElement.className = 'game-over-content win';
+                    titleElement.textContent = '🎉 恭喜你赢了！';
+                    messageElement.textContent = `用时 ${this.timer} 秒完成游戏`;
+                } else {
+                    contentElement.className = 'game-over-content lose';
+                    titleElement.textContent = '💥 游戏结束';
+                    messageElement.textContent = '你踩到地雷了！';
+                }
+
+                gameOverElement.classList.add('show');
+            }
+
+            startTimer() {
+                this.timerInterval = setInterval(() => {
+                    this.timer++;
+                    document.getElementById('timer').textContent = this.timer;
+                }, 1000);
+            }
+
+            updateMinesLeft() {
+                let flaggedCount = 0;
+                for (let row = 0; row < this.rows; row++) {
+                    for (let col = 0; col < this.cols; col++) {
+                        if (this.flagged[row][col]) flaggedCount++;
+                    }
+                }
+                document.getElementById('minesLeft').textContent = this.totalMines - flaggedCount;
+            }
+        }
+
+        const game = new Minesweeper();
+    </script>
+</body>
+</html>
