@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>俄罗斯方块</title>
+    <style>
+        :root {
+            --bg: #11161d;
+            --panel: #1d2630;
+            --panel-2: #263340;
+            --line: rgba(255, 255, 255, 0.12);
+            --text: #f3f7fb;
+            --muted: #a7b6c5;
+            --accent: #25d0ab;
+            --danger: #ff6b6b;
+            --cell: 30px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            background:
+                linear-gradient(135deg, rgba(37, 208, 171, 0.16), transparent 34%),
+                linear-gradient(180deg, #151c24 0%, var(--bg) 100%);
+            color: var(--text);
+            font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+        }
+
+        .shell {
+            width: min(1060px, 100%);
+            display: grid;
+            grid-template-columns: minmax(300px, 360px) minmax(240px, 1fr);
+            gap: 22px;
+            align-items: start;
+        }
+
+        .board-wrap,
+        .side-panel {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: rgba(29, 38, 48, 0.92);
+            box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+        }
+
+        .board-wrap {
+            position: relative;
+            padding: 18px;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            image-rendering: pixelated;
+        }
+
+        #board {
+            aspect-ratio: 10 / 20;
+            border: 2px solid rgba(255, 255, 255, 0.18);
+            border-radius: 6px;
+            background: #0b1016;
+        }
+
+        .overlay {
+            position: absolute;
+            inset: 18px;
+            display: none;
+            place-items: center;
+            padding: 24px;
+            border-radius: 6px;
+            background: rgba(8, 12, 17, 0.78);
+            text-align: center;
+        }
+
+        .overlay.show {
+            display: grid;
+        }
+
+        .overlay h2 {
+            margin-bottom: 10px;
+            color: var(--text);
+            font-size: 1.8rem;
+        }
+
+        .overlay p {
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .side-panel {
+            display: grid;
+            gap: 18px;
+            padding: 22px;
+        }
+
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            gap: 14px;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: clamp(1.8rem, 4vw, 2.7rem);
+            line-height: 1;
+            letter-spacing: 0;
+        }
+
+        .home {
+            color: var(--muted);
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            white-space: nowrap;
+        }
+
+        .home:hover {
+            color: var(--text);
+            border-bottom-color: var(--accent);
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .stat,
+        .preview,
+        .controls,
+        .touch-panel {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .stat {
+            min-height: 78px;
+            padding: 12px;
+        }
+
+        .stat span {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--muted);
+            font-size: 0.82rem;
+        }
+
+        .stat strong {
+            font-size: 1.45rem;
+        }
+
+        .preview {
+            display: grid;
+            grid-template-columns: 116px 1fr;
+            gap: 16px;
+            align-items: center;
+            padding: 16px;
+        }
+
+        #next {
+            width: 116px;
+            height: 116px;
+            border-radius: 6px;
+            background: #0d131a;
+        }
+
+        .preview h2,
+        .controls h2 {
+            margin-bottom: 8px;
+            font-size: 1rem;
+        }
+
+        .preview p,
+        .controls p {
+            color: var(--muted);
+            line-height: 1.7;
+            font-size: 0.92rem;
+        }
+
+        .buttons {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        button {
+            min-height: 44px;
+            border: 1px solid rgba(37, 208, 171, 0.45);
+            border-radius: 8px;
+            background: #1f5f59;
+            color: var(--text);
+            cursor: pointer;
+            font: inherit;
+            font-weight: 700;
+        }
+
+        button:hover {
+            background: #257269;
+        }
+
+        button.secondary {
+            border-color: rgba(255, 255, 255, 0.18);
+            background: var(--panel-2);
+        }
+
+        button.secondary:hover {
+            background: #314150;
+        }
+
+        .controls {
+            padding: 16px;
+        }
+
+        .keys {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px 14px;
+            margin-top: 10px;
+            color: var(--muted);
+            font-size: 0.92rem;
+        }
+
+        kbd {
+            display: inline-flex;
+            min-width: 34px;
+            min-height: 28px;
+            align-items: center;
+            justify-content: center;
+            margin-right: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 6px;
+            background: #111922;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.84rem;
+        }
+
+        .touch-panel {
+            display: none;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 8px;
+            padding: 10px;
+        }
+
+        .touch-panel button {
+            min-width: 0;
+            padding: 0;
+            font-size: 1rem;
+        }
+
+        @media (max-width: 760px) {
+            body {
+                padding: 14px;
+                align-items: start;
+            }
+
+            .shell {
+                grid-template-columns: 1fr;
+                gap: 14px;
+            }
+
+            .board-wrap,
+            .side-panel {
+                padding: 12px;
+            }
+
+            .side-panel {
+                order: -1;
+            }
+
+            .stats {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+
+            .stat {
+                min-height: 66px;
+                padding: 10px;
+            }
+
+            .stat strong {
+                font-size: 1.1rem;
+            }
+
+            .preview {
+                grid-template-columns: 86px 1fr;
+                padding: 12px;
+            }
+
+            #next {
+                width: 86px;
+                height: 86px;
+            }
+
+            .keys {
+                grid-template-columns: 1fr;
+            }
+
+            .touch-panel {
+                display: grid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="shell">
+        <section class="board-wrap" aria-label="游戏区域">
+            <canvas id="board" width="300" height="600"></canvas>
+            <div id="overlay" class="overlay show">
+                <div>
+                    <h2>俄罗斯方块</h2>
+                    <p>按开始进入游戏。消除整行得分，等级越高下落越快。</p>
+                </div>
+            </div>
+        </section>
+
+        <aside class="side-panel">
+            <div class="top-bar">
+                <h1>俄罗斯方块</h1>
+                <a class="home" href="./index.html">返回首页</a>
+            </div>
+
+            <section class="stats" aria-label="计分板">
+                <div class="stat">
+                    <span>分数</span>
+                    <strong id="score">0</strong>
+                </div>
+                <div class="stat">
+                    <span>行数</span>
+                    <strong id="lines">0</strong>
+                </div>
+                <div class="stat">
+                    <span>等级</span>
+                    <strong id="level">1</strong>
+                </div>
+            </section>
+
+            <section class="preview">
+                <canvas id="next" width="116" height="116"></canvas>
+                <div>
+                    <h2>下一个</h2>
+                    <p>预判形状，给长条和 T 块留出空间。</p>
+                </div>
+            </section>
+
+            <div class="buttons">
+                <button id="startBtn">开始</button>
+                <button id="pauseBtn" class="secondary">暂停</button>
+            </div>
+
+            <section class="controls">
+                <h2>操作</h2>
+                <p>键盘和触屏按钮都可以控制方块。</p>
+                <div class="keys">
+                    <span><kbd>←</kbd><kbd>→</kbd>移动</span>
+                    <span><kbd>↑</kbd>旋转</span>
+                    <span><kbd>↓</kbd>加速</span>
+                    <span><kbd>Space</kbd>硬降</span>
+                    <span><kbd>P</kbd>暂停</span>
+                    <span><kbd>R</kbd>重开</span>
+                </div>
+            </section>
+
+            <section class="touch-panel" aria-label="触屏控制">
+                <button data-action="left">←</button>
+                <button data-action="right">→</button>
+                <button data-action="rotate">↻</button>
+                <button data-action="down">↓</button>
+                <button data-action="drop">落</button>
+            </section>
+        </aside>
+    </main>
+
+    <script>
+        const COLS = 10;
+        const ROWS = 20;
+        const SIZE = 30;
+        const PREVIEW = 24;
+        const boardCanvas = document.getElementById("board");
+        const boardCtx = boardCanvas.getContext("2d");
+        const nextCanvas = document.getElementById("next");
+        const nextCtx = nextCanvas.getContext("2d");
+        const scoreEl = document.getElementById("score");
+        const linesEl = document.getElementById("lines");
+        const levelEl = document.getElementById("level");
+        const overlay = document.getElementById("overlay");
+        const startBtn = document.getElementById("startBtn");
+        const pauseBtn = document.getElementById("pauseBtn");
+
+        const SHAPES = {
+            I: [[1, 1, 1, 1]],
+            J: [[1, 0, 0], [1, 1, 1]],
+            L: [[0, 0, 1], [1, 1, 1]],
+            O: [[1, 1], [1, 1]],
+            S: [[0, 1, 1], [1, 1, 0]],
+            T: [[0, 1, 0], [1, 1, 1]],
+            Z: [[1, 1, 0], [0, 1, 1]]
+        };
+
+        const COLORS = {
+            I: "#45d7ff",
+            J: "#5b7cfa",
+            L: "#ffb547",
+            O: "#f7dc4f",
+            S: "#52d273",
+            T: "#b56dff",
+            Z: "#ff6f7d"
+        };
+
+        let grid;
+        let current;
+        let next;
+        let score;
+        let lines;
+        let level;
+        let running = false;
+        let paused = false;
+        let lastTime = 0;
+        let dropCounter = 0;
+        let animationId = null;
+
+        function createGrid() {
+            return Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+        }
+
+        function cloneShape(matrix) {
+            return matrix.map(row => [...row]);
+        }
+
+        function randomPiece() {
+            const keys = Object.keys(SHAPES);
+            const type = keys[Math.floor(Math.random() * keys.length)];
+            const shape = cloneShape(SHAPES[type]);
+            return {
+                type,
+                shape,
+                x: Math.floor((COLS - shape[0].length) / 2),
+                y: 0
+            };
+        }
+
+        function resetGame() {
+            grid = createGrid();
+            score = 0;
+            lines = 0;
+            level = 1;
+            current = randomPiece();
+            next = randomPiece();
+            running = true;
+            paused = false;
+            lastTime = 0;
+            dropCounter = 0;
+            overlay.classList.remove("show");
+            pauseBtn.textContent = "暂停";
+            startBtn.textContent = "重开";
+            updateHud();
+            draw();
+            if (animationId) cancelAnimationFrame(animationId);
+            animationId = requestAnimationFrame(loop);
+        }
+
+        function updateHud() {
+            scoreEl.textContent = score;
+            linesEl.textContent = lines;
+            levelEl.textContent = level;
+        }
+
+        function dropInterval() {
+            return Math.max(90, 760 - (level - 1) * 62);
+        }
+
+        function collides(piece, offsetX = 0, offsetY = 0, shape = piece.shape) {
+            for (let y = 0; y < shape.length; y++) {
+                for (let x = 0; x < shape[y].length; x++) {
+                    if (!shape[y][x]) continue;
+
+                    const boardX = piece.x + x + offsetX;
+                    const boardY = piece.y + y + offsetY;
+
+                    if (boardX < 0 || boardX >= COLS || boardY >= ROWS) return true;
+                    if (boardY >= 0 && grid[boardY][boardX]) return true;
+                }
+            }
+            return false;
+        }
+
+        function mergePiece() {
+            current.shape.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (!value) return;
+                    const boardY = current.y + y;
+                    const boardX = current.x + x;
+                    if (boardY >= 0) grid[boardY][boardX] = current.type;
+                });
+            });
+        }
+
+        function clearLines() {
+            let cleared = 0;
+            for (let y = ROWS - 1; y >= 0; y--) {
+                if (grid[y].every(Boolean)) {
+                    grid.splice(y, 1);
+                    grid.unshift(Array(COLS).fill(null));
+                    cleared++;
+                    y++;
+                }
+            }
+
+            if (cleared > 0) {
+                const rewards = [0, 100, 300, 500, 800];
+                score += rewards[cleared] * level;
+                lines += cleared;
+                level = Math.floor(lines / 10) + 1;
+                updateHud();
+            }
+        }
+
+        function spawnPiece() {
+            current = next;
+            next = randomPiece();
+            if (collides(current)) endGame();
+        }
+
+        function endGame() {
+            running = false;
+            paused = false;
+            overlay.querySelector("h2").textContent = "游戏结束";
+            overlay.querySelector("p").textContent = `最终分数 ${score}，消除 ${lines} 行。按开始重新挑战。`;
+            overlay.classList.add("show");
+            startBtn.textContent = "重开";
+            pauseBtn.textContent = "暂停";
+        }
+
+        function move(dx) {
+            if (!canPlay()) return;
+            if (!collides(current, dx, 0)) {
+                current.x += dx;
+                draw();
+            }
+        }
+
+        function softDrop() {
+            if (!canPlay()) return;
+            if (!collides(current, 0, 1)) {
+                current.y++;
+                score += 1;
+                updateHud();
+            } else {
+                lockPiece();
+            }
+            dropCounter = 0;
+            draw();
+        }
+
+        function hardDrop() {
+            if (!canPlay()) return;
+            let distance = 0;
+            while (!collides(current, 0, 1)) {
+                current.y++;
+                distance++;
+            }
+            score += distance * 2;
+            lockPiece();
+            updateHud();
+            draw();
+        }
+
+        function rotatePiece() {
+            if (!canPlay() || current.type === "O") return;
+            const rotated = current.shape[0].map((_, index) =>
+                current.shape.map(row => row[index]).reverse()
+            );
+
+            const kicks = [0, -1, 1, -2, 2];
+            for (const kick of kicks) {
+                if (!collides(current, kick, 0, rotated)) {
+                    current.x += kick;
+                    current.shape = rotated;
+                    draw();
+                    return;
+                }
+            }
+        }
+
+        function lockPiece() {
+            mergePiece();
+            clearLines();
+            spawnPiece();
+        }
+
+        function canPlay() {
+            return running && !paused;
+        }
+
+        function togglePause() {
+            if (!running) return;
+            paused = !paused;
+            pauseBtn.textContent = paused ? "继续" : "暂停";
+            overlay.querySelector("h2").textContent = "已暂停";
+            overlay.querySelector("p").textContent = "按 P 或继续按钮回到游戏。";
+            overlay.classList.toggle("show", paused);
+            lastTime = 0;
+            if (!paused) animationId = requestAnimationFrame(loop);
+        }
+
+        function loop(time = 0) {
+            if (!running || paused) return;
+            const delta = time - lastTime;
+            lastTime = time;
+            dropCounter += delta;
+
+            if (dropCounter > dropInterval()) {
+                softDrop();
+            }
+
+            draw();
+            animationId = requestAnimationFrame(loop);
+        }
+
+        function drawCell(ctx, x, y, size, type, alpha = 1) {
+            const color = COLORS[type];
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = color;
+            ctx.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+            ctx.fillStyle = "rgba(255, 255, 255, 0.22)";
+            ctx.fillRect(x * size + 3, y * size + 3, size - 6, 5);
+            ctx.fillStyle = "rgba(0, 0, 0, 0.18)";
+            ctx.fillRect(x * size + 3, y * size + size - 8, size - 6, 5);
+            ctx.globalAlpha = 1;
+        }
+
+        function drawGridLines(ctx, width, height, size) {
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.055)";
+            ctx.lineWidth = 1;
+            for (let x = 0; x <= width; x += size) {
+                ctx.beginPath();
+                ctx.moveTo(x + 0.5, 0);
+                ctx.lineTo(x + 0.5, height);
+                ctx.stroke();
+            }
+            for (let y = 0; y <= height; y += size) {
+                ctx.beginPath();
+                ctx.moveTo(0, y + 0.5);
+                ctx.lineTo(width, y + 0.5);
+                ctx.stroke();
+            }
+        }
+
+        function drawPiece(piece, alpha = 1) {
+            piece.shape.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (!value) return;
+                    const drawY = piece.y + y;
+                    if (drawY >= 0) drawCell(boardCtx, piece.x + x, drawY, SIZE, piece.type, alpha);
+                });
+            });
+        }
+
+        function ghostPiece() {
+            const ghost = {
+                ...current,
+                shape: current.shape
+            };
+            while (!collides(ghost, 0, 1)) ghost.y++;
+            return ghost;
+        }
+
+        function draw() {
+            boardCtx.clearRect(0, 0, boardCanvas.width, boardCanvas.height);
+            boardCtx.fillStyle = "#0b1016";
+            boardCtx.fillRect(0, 0, boardCanvas.width, boardCanvas.height);
+            drawGridLines(boardCtx, boardCanvas.width, boardCanvas.height, SIZE);
+
+            grid.forEach((row, y) => {
+                row.forEach((type, x) => {
+                    if (type) drawCell(boardCtx, x, y, SIZE, type);
+                });
+            });
+
+            if (current) {
+                drawPiece(ghostPiece(), 0.22);
+                drawPiece(current);
+            }
+
+            drawNext();
+        }
+
+        function drawNext() {
+            nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
+            nextCtx.fillStyle = "#0d131a";
+            nextCtx.fillRect(0, 0, nextCanvas.width, nextCanvas.height);
+            if (!next) return;
+
+            const width = next.shape[0].length * PREVIEW;
+            const height = next.shape.length * PREVIEW;
+            const startX = Math.floor((nextCanvas.width - width) / 2 / PREVIEW);
+            const startY = Math.floor((nextCanvas.height - height) / 2 / PREVIEW);
+
+            next.shape.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value) drawCell(nextCtx, startX + x, startY + y, PREVIEW, next.type);
+                });
+            });
+        }
+
+        document.addEventListener("keydown", event => {
+            if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", " "].includes(event.key)) {
+                event.preventDefault();
+            }
+
+            if (event.key === "ArrowLeft") move(-1);
+            if (event.key === "ArrowRight") move(1);
+            if (event.key === "ArrowUp") rotatePiece();
+            if (event.key === "ArrowDown") softDrop();
+            if (event.key === " ") hardDrop();
+            if (event.key.toLowerCase() === "p") togglePause();
+            if (event.key.toLowerCase() === "r") resetGame();
+        });
+
+        document.querySelectorAll("[data-action]").forEach(button => {
+            button.addEventListener("click", () => {
+                const action = button.dataset.action;
+                if (action === "left") move(-1);
+                if (action === "right") move(1);
+                if (action === "rotate") rotatePiece();
+                if (action === "down") softDrop();
+                if (action === "drop") hardDrop();
+            });
+        });
+
+        startBtn.addEventListener("click", resetGame);
+        pauseBtn.addEventListener("click", togglePause);
+
+        grid = createGrid();
+        current = null;
+        next = randomPiece();
+        draw();
+    </script>
+</body>
+</html>
